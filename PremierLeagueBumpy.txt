@@ -1,0 +1,81 @@
+#importing packages
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import mplsoccer
+import highlight_text
+from mplsoccer import Bumpy, FontManager, add_image
+from highlight_text import HighlightText, ax_text, fig_text
+import cv2
+from PIL import Image
+from io import BytesIO
+import requests
+os.chdir("/Users/derricktan/Documents/Football Data")
+
+#reading the data file
+df = pd.read_csv('PL 2020_21 Standings.csv')
+df = df.drop('Team',axis=1)
+
+#defining an array for the different matchweeks you wish to plot
+match_week = ['Week' + " "+ str(num) for num in range(1,39)]
+
+#creating the dictionary to include the teams you wish to see in this chart
+highlight_dict = {
+        'Chelsea':'#51CAF1',
+        'Liverpool':'#C8102E',
+        'Leicester City' : '#FDBE11'
+}
+
+#creating the plot for the Bumpy Chart
+bumpy = Bumpy(
+    scatter_color = '#282A2C', line_color='#252525',
+    rotate_xticks=90,
+    ticklabel_size = 15,
+    scatter_primary = 'D',
+    show_right = True,
+    plot_labels = True,
+    alignment_yvalue = .1,
+    alignment_xvalue = .065
+)
+
+#plotting the bumpy chart
+fig, ax = bumpy.plot(
+    x_list=match_week,  # match-day or match-week
+    y_list=np.linspace(1, 20, 20).astype(int),  # position value from 1 to 20
+    values=df,  # values having positions for each team
+    secondary_alpha=0.5,   
+    highlight_dict=highlight_dict,  
+    figsize=(18, 14),  # size of the figure
+    x_label='Match Week', y_label='Position',  # label name
+    ylim=(-0.1, 23),  # y-axis limit
+    lw=2.5, # linewidth of the connecting lines
+)
+
+#setting the axis labels coordinates
+ax.yaxis.set_label_coords(-0.05, 0.50)
+ax.xaxis.set_label_coords(0.5,-0.1)
+
+plt.xticks(rotation=45)
+
+#defining the title and subtitle
+TITLE = "The Race for the Top 4"
+SUB_TITLE = "2020/21 Premier League Season Weekly Positions of <Chelsea>, <Liverpool> and <Leicester City>"
+
+# add title
+fig.text(0.43, 0.84, TITLE, size=29, color="#F2F2F2")
+
+# add subtitle
+fig_text(
+    0.17, 0.82, SUB_TITLE, color="#F2F2F2",
+    highlight_textprops=[{"color": '#51CAF1'}, {"color": '#C8102E'}, {"color": '#FDBE11'}],
+    size=20, fig=fig)
+
+#add PL Logo
+ax2 = fig.add_axes([0.37,0.83,0.05,0.05])
+ax2.axis('off')
+img=Image.open('PL Logo white.png')
+ax2.imshow(img)
+
+#credits for PL Logo
+fig.text(0.82,0.83, 'PL Logo: www.pngkit.com', size=13, color="#F2F2F2")
