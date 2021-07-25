@@ -1,0 +1,121 @@
+#importing of libraries
+import pandas as pd
+from pandas.plotting import autocorrelation_plot
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.seasonal import seasonal_decompose #library for time series analysis
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.arima_model import ARIMA
+import statsmodels
+statsmodels.__version__
+
+#reading the dataset file
+df = pd.read_csv("dataset_2017_2020.csv")
+
+#deleting duplicates
+df.drop_duplicates(keep= 'first', inplace=True)
+df
+
+#converting of transactio date to date format
+df['date'] = df.transaction_date.str[:10] #avoid time in date
+df['date'] = pd.to_datetime(df.date) #convert to date format
+df['date'] = df.date + pd.offsets.MonthBegin(-1) #send dates to first day of the month
+df.head()
+
+#creating of timeseries dataframe
+ts = df.groupby(['date']).agg(total_revenue=('price', sum)).reset_index()
+ts.head()
+
+#Grab 3 years of data and plot graph
+training = ts.loc[ts.date < '2020-01-01'].set_index('date')
+training.plot(figsize=(10,4))
+
+# See the components of a time series
+# - Observed
+# - Trend (direction)
+# - Seasonal (repeated pattern)
+# - Residual (noise)
+import statsmodels.api as sm
+decomposition = sm.tsa.seasonal_decompose(training, model='additive')
+plt.rcParams["figure.figsize"] = [16,9]
+fig = decomposition.plot()
+
+# Using mean and variance to check if time series is stationary
+split = round(len(training) / 2)
+x1 = training[0:split]
+x2 = training[split:]
+mean1= x1.mean()
+mean2= x2.mean()
+print("Mean 1 & 2= ", mean1[0], mean2[0])
+var1=x1.var()
+var2=x2.var()
+print("Variance 1 & 2= ",var1[0], var2[0])
+
+# Test to check that the time series is not defined by a trend, therefore it is a stationaty time series.
+# We use the Augmented Dickey-Fuller test
+test_adf = adfuller(training)
+def adfuller_test(training):
+    test_adf=adfuller(training)
+    labels = ['ADF Test Statistic','p-value','#Lags Used','Number of Observations']
+    for value,label in zip(test_adf,labels):
+        print(label+' : '+str(value) )
+
+if test_adf[1] <= 0.05:
+    print("There is strong evidence against the null hypothesis(Ho), reject the null hypothesis. Data is stationary")
+else:
+    print("There is weak evidence against null hypothesis,indicating it is non-stationary ")
+
+adfuller_test(training)
+
+# The autocorrelation plot will help us to define one of the parameters of the ARIMA model (parameter p)
+# An autocorrelation is the correlation of a signal with a delayed copy of itself.
+# When a correlation value is closer to 0 it is telling us that there is randomness in our data; 
+# a correlation of 1 (or -1) means we can use the delayed series to predict the current series entirely (which is ideal and uncommon). 
+# We can see that around 3 months there is a negative correlation, ideally 12 months seem to have the highest correlation but after that the correlation is close to 0.
+# Using p =3 for the arima model means that data from 3 months in the past can help predict the data now.
+# A way we can test it is by implementing an AutoRegressive Integrated Moving Average model, or ARIMA.
+autocorrelation_plot(training);
+
+# Test dataset
+test = ts.loc[ts.date >= '2020-01-01'].set_index('date').reset_index()
+test.head(10)
+
+#forecasting values of the test set
+whole = ts.set_index('date').squeeze().copy()
+history = whole.take(range(36))
+future = test.set_index('date').squeeze().copy()
+for t in range(len(future)):
+    model = ARIMA(history, order=(3,0,0), freq='MS')
+    model_fit = model.fit(disp=0)
+    output = model_fit.forecast()
+    yhat = output[0]
+    obs = future[t]
+    history = whole.take(range(36 + t+1))
+    print('prediction', yhat, ', expected', obs, ', stderr', output[1], ', conf. int.', output[2])
+    
+#forecasting for the next 2 years
+#we need running ARMA again so it captures the last observed value
+model = ARIMA(history, order=(3,0,0), freq='MS')
+model_fit = model.fit(disp=0)
+output = model_fit.forecast(steps=24)
+df_forecast = pd.DataFrame({'forecast':output[0]},index=pd.date_range(start='6/1/2020', periods=24, freq='MS'))
+
+#display output forecast
+output[0]
+
+#Plotting the time series with forecast
+ax = history.plot(label='Observed', figsize=(15, 8))
+df_forecast.plot(ax=ax,label='Forecast',color='r')
+ax.fill_between(df_forecast.index,
+                ci[:,0],
+                ci[:,1], color='#3DDC97', alpha=.25)
+ax.set_xlabel('Year',fontsize='18')
+ax.set_ylabel('Revenue',fontsize='18')
+
+plt.xticks(fontsize='14')
+plt.yticks(fontsize='14')
+
+plt.legend(fontsize=14)
+
+plt.savefig("SFM Forecast.png")
+plt.show()
