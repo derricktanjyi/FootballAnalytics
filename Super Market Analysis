@@ -1,0 +1,130 @@
+#importing of libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime
+
+#read the csv file to explore the dataset
+df = pd.read_csv('dataset_2017_2020.csv')
+
+#Exploratory Data Analysis or EDA
+df.dtypes #check that the data types for each column is correct
+
+df.shape ##check shape of data (no.of rows, no. of columns)
+
+df.notnull().sum() ##check for null values in each columns
+
+#check unique categories of loyalty for any invalid entries
+np.unique(df["loyalty"])
+
+#check unique categories of household_type for any invalid entries
+np.unique(df["household_type"])
+
+#check unique categories of age_band for any invalid entries
+np.unique(df["age_band"])
+
+#check unique categories of department for any invalid entries
+np.unique(df["department"])
+
+#check for and deleting duplicates
+df.drop_duplicates(keep= 'first', inplace=True)
+df
+
+#replacing Promiscuous to Non-Loyalist for
+df.loyalty.replace("Promiscuous", "Non-Loyalist", inplace=True)
+np.unique(df["loyalty"])
+
+#changing transaction date format to datetime_format
+df.transaction_date = pd.to_datetime(df.transaction_date,format='%Y-%m-%d')
+df["year"] = df.transaction_date.dt.year
+df["month"] = df.transaction_date.dt.month
+
+#Visualize Revenue by Customer Loyalty over time
+plt.figure(figsize=(12,8))
+tmp1=df.groupby(["loyalty","transaction_date"]).agg(revenue=('price', sum)).reset_index()
+sns.lineplot(data=tmp1, x='transaction_date', y='revenue', hue='loyalty')
+plt.xlabel('Date',fontsize='18')
+plt.ylabel('Revenue',fontsize='18')
+plt.title("Revenue by Customer Loyalty", fontsize='24')
+plt.legend(fontsize=11)
+
+#Using the method date_range to customize the number of dates in our x-axis.
+x_labels = pd.date_range(tmp1.transaction_date.min(),tmp1.transaction_date.max(),6)
+plt.xticks(x_labels,fontsize='14')
+plt.yticks(fontsize='14')
+plt.savefig("Revenue Per Customer Loyalty")
+
+#showing top 5 commodities purchased by customers
+tmp2 = df.groupby(['loyalty', 'commodity']).agg(total_revenue=('price', sum)).reset_index()
+top_5 = pd.concat(
+    [tmp2[tmp2.loyalty == hh] \
+         .sort_values('total_revenue', ascending=False) \
+     .head(5) for hh in tmp2.loyalty.unique()]).reset_index(drop=True)
+top_5
+
+#plotting interactive graph for Top Commodities Revenue per Loyalty using Plotly
+data = []
+for d in top_5.loyalty.unique():
+    tmp2 = top_5[top_5.loyalty==d].groupby(['commodity']).agg(revenue=('total_revenue', sum)).reset_index()
+    data.append(go.Bar(x=tmp2.commodity, y=tmp2.revenue, name = d))
+        
+fig = go.Figure(
+    data = data,
+    layout = go.Layout(
+        title ='Top Commodities Revenue per Loyalty',
+        yaxis=dict(
+            title='Revenue'
+        )
+    )
+)
+
+fig.update_layout(barmode='stack',xaxis_tickangle=-45)
+fig.show()
+
+#creating a new dataframe for beef via subsetting
+beef = df[df.commodity == 'Beef'].copy()
+beef.transaction_date = pd.to_datetime(beef.transaction_date, format='%Y-%m-%d')
+beef['year'] = beef.transaction_date.dt.year
+beef['month'] = beef.transaction_date.dt.month
+
+#grouping dataframe by year and showing total revenue
+tmp_beef = beef.groupby('year').agg(total_revenue=('price', sum)).reset_index()
+
+#indicating it is a scatter plot
+data_beef = go.Scatter(x=tmp_beef.year, y=tmp_beef.total_revenue)
+    
+fig2 = go.Figure(
+    data=data_beef,
+    layout = go.Layout(
+        title ='Beef consumption trend',
+        xaxis=dict(title='Year'),
+        yaxis=dict(
+            title='Revenue'
+        )
+    )
+)
+fig2.update_xaxes(ticks="inside",ticktext=["2017","Mid-2017","2018","Mid-2018","2019","Mid-2019","2020"],
+                 tickvals=["2017","2,017.5","2018","2,018.5","2019","2,019.5","2020"])
+
+fig2.show()
+
+#creating a new dataframe for meat related products
+meat = df[df.commodity.str.lower().str.contains('meat|beef|chicken|seafood|pork')].copy() 
+meat.transaction_date = pd.to_datetime(meat.transaction_date, format='%Y-%m-%d') 
+tmp2=meat.groupby(['transaction_date']).agg(total_revenue=('price', sum)).reset_index()
+
+#plotting graph to show revenue of meat related products over time
+plt.figure(figsize=(12,8))
+sns.lineplot(data=tmp2, x='transaction_date', y='total_revenue')
+plt.xlabel('Date',fontsize='18')
+plt.ylabel('Revenue',fontsize='18')
+plt.title("Meat Revenue", fontsize='24')
+
+#Using the method date_range to customize the number of dates in our x-axis.
+x_labels = pd.date_range(tmp1.transaction_date.min(),tmp1.transaction_date.max(),6)
+plt.xticks(x_labels,fontsize='14')
+plt.yticks(fontsize='14')
+plt.savefig("Meat Revenue")
