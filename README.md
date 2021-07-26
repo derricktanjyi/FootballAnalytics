@@ -1,4 +1,4 @@
 Hi Everyone!
 
-This is my Python Analytics Repo where I store some codes of some Analysis and Visualizations done using Python.
+This is my Football Analytics Repo where i attempt to answer some football related questions through visualizations via Python.
 Feel Free to have a look!
